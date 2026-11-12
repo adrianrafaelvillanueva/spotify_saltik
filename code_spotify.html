@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sad Songs Library</title>
+<style>
+  :root { --bg:#13161b; --card:#1b1f26; --line:#2a303a; --text:#e4e2dc; --muted:#8b909a; --accent:#8aa3bd; }
+  * { box-sizing:border-box; margin:0; padding:0; font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  body { background:var(--bg); color:var(--text); height:100vh; display:grid; grid-template-columns:230px 1fr; grid-template-rows:1fr 84px; overflow:hidden; }
+  button { cursor:pointer; background:none; border:0; color:inherit; font-size:1rem; }
+  input, select, textarea { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px; font-size:.9rem; }
+  .btn { background:var(--accent); color:#13161b; border-radius:20px; padding:8px 16px; font-weight:600; font-size:.85rem; }
+
+  aside { background:#0f1115; padding:20px 14px; display:flex; flex-direction:column; gap:8px; overflow-y:auto; }
+  aside h1 { font-size:1rem; margin-bottom:10px; }
+  .cat { text-align:left; padding:9px 10px; border-radius:6px; color:var(--muted); font-size:.9rem; }
+  .cat:hover, .cat.on { background:var(--card); color:var(--text); }
+  #cat-form { display:flex; gap:6px; margin-top:8px; }
+  #cat-form input { flex:1; min-width:0; }
+
+  main { padding:24px; overflow-y:auto; display:flex; flex-direction:column; gap:24px; background:linear-gradient(#1c212a,var(--bg) 260px); }
+  h2 { font-size:1.1rem; margin-bottom:10px; }
+  #lyrics { height:170px; overflow-y:auto; position:relative; text-align:center; background:var(--card); border-radius:10px; padding:16px; }
+  #lyrics p { margin:10px 0; color:var(--muted); }
+  #lyrics p.on { color:var(--text); font-weight:700; font-size:1.15rem; }
+  details { background:var(--card); border-radius:10px; padding:14px 18px; }
+  summary { font-weight:600; cursor:pointer; }
+  form.add { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:12px; }
+  form.add label { display:flex; flex-direction:column; gap:4px; font-size:.78rem; color:var(--muted); }
+  form.add .wide { grid-column:1/-1; }
+  textarea { min-height:80px; resize:vertical; }
+  #grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; }
+  .card { background:var(--card); border-radius:8px; padding:12px; cursor:pointer; position:relative; }
+  .card:hover { background:#232832; }
+  .card.on { outline:2px solid var(--accent); }
+  .cover { aspect-ratio:1; border-radius:6px; background:#262c36; display:flex; align-items:center; justify-content:center; font-size:2rem; margin-bottom:8px; }
+  .card b, .card small { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card small { color:var(--muted); margin-top:2px; }
+  .del { position:absolute; top:8px; right:8px; display:none; background:#13161bcc; border-radius:50%; width:24px; height:24px; font-size:.8rem; }
+  .card:hover .del { display:block; }
+
+  footer { grid-column:1/-1; background:var(--card); border-top:1px solid var(--line); display:flex; align-items:center; gap:20px; padding:0 20px; }
+  #now { width:25%; min-width:0; }
+  #now b, #now small { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #now small { color:var(--muted); }
+  #ctrl { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  #btns { display:flex; gap:18px; align-items:center; }
+  #play { background:var(--text); color:#13161b; width:38px; height:38px; border-radius:50%; }
+  #loop.on { color:var(--accent); }
+  .prog { display:flex; align-items:center; gap:8px; width:100%; max-width:560px; font-size:.75rem; color:var(--muted); }
+  #bar { flex:1; height:4px; background:var(--line); border-radius:2px; cursor:pointer; }
+  #fill { height:100%; width:0; background:var(--accent); border-radius:2px; }
+
+  @media (max-width:700px) { body { grid-template-columns:1fr; grid-template-rows:auto 1fr 100px; } aside { flex-direction:row; align-items:center; overflow-x:auto; } aside h1 { display:none; } .cat { white-space:nowrap; } #now { display:none; } }
+</style>
+</head>
+<body>
+<audio id="audio"></audio>
+
+<aside>
+  <h1>Sad Songs Library</h1>
+  <div id="cats"></div>
+  <form id="cat-form"><input id="cat-in" placeholder="New category" maxlength="30"><button class="btn">Add</button></form>
+</aside>
+
+<main>
+  <section><h2>Lyrics</h2><div id="lyrics"></div></section>
+
+  <details>
+    <summary>Add a song</summary>
+    <form class="add" id="song-form">
+      <label>Title<input id="f-title" required></label>
+      <label>Artist<input id="f-artist" required></label>
+      <label>Category<select id="f-cat"></select></label>
+      <label>MP3 file<input type="file" id="f-file" accept="audio/*"></label>
+      <label>Or MP3 file name in this folder<input id="f-src" placeholder="my-song.mp3"></label>
+      <label class="wide">Lyrics (optional). Start a line with [0:12] to sync it.<textarea id="f-lyrics"></textarea></label>
+      <div><button class="btn">Save song</button></div>
+    </form>
+  </details>
+
+  <section><h2 id="list-title">All songs</h2><div id="grid"></div></section>
+</main>
+
+<footer>
+  <div id="now"><b id="n-title">Nothing playing</b><small id="n-artist">Choose a song</small></div>
+  <div id="ctrl">
+    <div id="btns">
+      <button id="prev" aria-label="Previous">⏮</button>
+      <button id="play" aria-label="Play or pause">▶</button>
+      <button id="next" aria-label="Next">⏭</button>
+      <button id="loop" aria-label="Repeat">↻</button>
+    </div>
+    <div class="prog"><span id="cur">0:00</span><div id="bar"><div id="fill"></div></div><span id="dur">0:00</span></div>
+  </div>
+</footer>
+
+<script>
+  const $ = id => document.getElementById(id), audio = $('audio'), ALL = 'All songs', KEY = 'sad-songs-v1';
+  const defaults = {
+    cats: ['Heartbreak', 'OPM Rock', 'Acoustic'],
+    songs: [
+      ['Let Me Be The One','Jimmy Bondoc','Heartbreak','let-me-be-the-one.mp3'],
+      ['Tell Me Where It Hurts','MYMP','Heartbreak',''],
+      ['The Day You Said Goodnight','Hale','Heartbreak',''],
+      ['Jeepney','Kala','OPM Rock',''],
+      ['Stay','Caryl Cabral','Acoustic',''],
+      ['Kanlungan','Noel Cabangon','Acoustic',''],
+      ['With A Smile','Eraserheads','OPM Rock',''],
+      ['Hanggang Kailan','Orange and Lemons','Heartbreak',''],
+      ['Superhero','Rocksteddy','OPM Rock',''],
+      ['Rainbow','South Border','Acoustic','']
+    ].map((s, i) => ({ id: 's' + i, title: s[0], artist: s[1], cat: s[2], src: s[3], lyrics: '' }))
+  };
+  let db; try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  db = db || defaults;
+  let active = ALL, current = null, lines = [];
+  const files = {};  // MP3s picked this session
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} };
+  const shown = () => active === ALL ? db.songs : db.songs.filter(s => s.cat === active);
+  const fmt = t => ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')};
+  const el = (tag, text, cls) => { const e = document.createElement(tag); e.textContent = text; if (cls) e.className = cls; return e; };
+
+  function render() {
+    $('cats').replaceChildren(...[ALL, ...db.cats].map(c => {
+      const b = el('button', c, 'cat' + (c === active ? ' on' : ''));
+      b.onclick = () => { active = c; render(); };
+      return b;
+    }));
+    $('f-cat').replaceChildren(...db.cats.map(c => el('option', c)));
+    if (db.cats.includes(active)) $('f-cat').value = active;
+    $('list-title').textContent = active;
+    $('grid').replaceChildren(...shown().map(s => {
+      const card = el('div', '', 'card' + (s.id === current ? ' on' : ''));
+      const del = el('button', '✕', 'del');
+      del.onclick = e => { e.stopPropagation(); remove(s); };
+      card.append(el('div', '♪', 'cover'), el('b', s.title), el('small', s.artist), del);
+      card.onclick = () => play(s.id);
+      return card;
+    }));
+    if (!shown().length) $('grid').textContent = 'No songs here yet. Use “Add a song” above.';
+  }
+
+  function showLyrics(s) {
+    lines = [];
+    $('lyrics').replaceChildren(...(s && s.lyrics.trim()
+      ? s.lyrics.split('\n').filter(l => l.trim()).map(l => {
+          const m = l.trim().match(/^\[(\d+):(\d{2})\]\s*(.*)$/), p = el('p', m ? m[3] : l.trim());
+          lines.push({ t: m ? +m[1] * 60 + +m[2] : null, p });
+          return p;
+        })
+      : [el('p', s ? 'No lyrics saved for this song.' : 'Play a song to see its lyrics.')]));
+  }
+
+  function play(id) {
+    const s = db.songs.find(x => x.id === id); if (!s) return;
+    current = id;
+    $('n-title').textContent = s.title; $('n-artist').textContent = s.artist;
+    showLyrics(s); render();
+    const src = files[id] || s.src;
+    if (!src) { audio.removeAttribute('src'); $('play').textContent = '▶'; return alert('No MP3 for this song yet. Add one by re-adding the song with a file or file name.'); }
+    audio.src = src;
+    audio.play().then(() => $('play').textContent = '⏸').catch(() => alert('Could not play "' + src + '". Check the file name and folder.'));
+  }
+
+  function step(d) {
+    const list = shown(); if (!list.length) return;
+    const i = list.findIndex(s => s.id === current);
+    play(list[(i + d + list.length) % list.length].id);
+  }
+
+  function remove(s) {
+    if (!confirm('Remove "' + s.title + '"?')) return;
+    db.songs = db.songs.filter(x => x !== s); save();
+    if (current === s.id) { audio.pause(); audio.removeAttribute('src'); current = null; showLyrics(null); $('n-title').textContent = 'Nothing playing'; $('n-artist').textContent = 'Choose a song'; $('play').textContent = '▶'; }
+    render();
+  }
+
+  $('play').onclick = () => {
+    if (!current) return shown().length && play(shown()[0].id);
+    if (!audio.src) return play(current);
+    if (audio.paused) { audio.play(); $('play').textContent = '⏸'; } else { audio.pause(); $('play').textContent = '▶'; }
+  };
+  $('next').onclick = () => step(1);
+  $('prev').onclick = () => step(-1);
+  $('loop').onclick = e => { audio.loop = !audio.loop; e.c4r ,-gurrentTarget.classList.toggle('on', audio.loop); };
+  $('bar').onclick = e => { const r = $('bar').getBoundingClientRect(); if (audio.duration) audio.currentTime = (e.clientX - r.left) / r.width * audio.duration; };
+  audio.ontimeupdate = () => {
+    if (!audio.duration) return;
+    $('fill').style.width = audio.currentTime / audio.duration * 100 + '%';
+    $('cur').textContent = fmt(audio.currentTime); $('dur').textContent = fmt(audio.duration);
+    let idx = -1; lines.forEach((l, i) => { if (l.t !== null && audio.currentTime >= l.t) idx = i; });
+    lines.forEach((l, i) => l.p.classList.toggle('on', i === idx));
+    if (idx >= 0) { const box = $('lyrics'), p = lines[idx].p; box.scrollTo({ top: p.offsetTop - box.clientHeight / 2 + p.clientHeight / 2, behavior: 'smooth' }); }
+  };
+  audio.onended = () => { if (!audio.loop) step(1); };
+
+  $('cat-form').onsubmit = e => {
+    e.preventDefault();
+    const name = $('cat-in').value.trim();
+    if (!name || [ALL, ...db.cats].some(c => c.toLowerCase() ===\ name.toLowerCase())) return;
+    db.cats.push(name); save(); active = name; $('cat-in').value = ''; render();
+  };
+
+  $('song-form').onsubmit = e => {
+    e.preventDefault();
+    const s = { id: 's' + Date.now(), title: $('f-title').value.trim(), artist: $('f-artist').value.trim(), cat: $('f-cat').value, src: $('f-src').value.trim(), lyrics: $('f-lyrics').value };
+    const f = $('f-file').files[0]; if (f) files[s.id] = URL.createObjectURL(f);
+    db.songs.push(s); save(); active = s.cat; e.target.reset(); render();
+  };
+
+  render(); showLyrics(null);
+</script>
+</body>
+</html>
